@@ -1,0 +1,30 @@
+{
+  "Patagonia": {
+    "score": 90,
+    "transparency": "high",
+    "labor_practices": "strong published standards and remediation reporting",
+    "certifications": ["Fair Trade", "Organic Cotton"],
+    "notes": "Strong repair and circularity messaging with detailed supply-chain disclosures."
+  },
+  "Everlane": {
+    "score": 72,
+    "transparency": "medium-high",
+    "labor_practices": "publishes factory list and some impact detail",
+    "certifications": ["Responsible Wool Standard"],
+    "notes": "Better-than-average transparency, but mixed evidence across categories."
+  },
+  "FastTrend": {
+    "score": 28,
+    "transparency": "low",
+    "labor_practices": "limited public evidence and weak disclosure",
+    "certifications": [],
+    "notes": "Low confidence in labor and environmental practices due to sparse reporting."
+  },
+  "Thought": {
+    "score": 80,
+    "transparency": "high",
+    "labor_practices": "clear sustainability materials and supplier standards",
+    "certifications": ["GOTS", "FSC Viscose"],
+    "notes": "Strong natural-fibre positioning with above-average transparency."
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "wool": {
+    "sustainability_score": 78,
+    "durability_score": 88,
+    "carbon_intensity": "medium",
+    "water_intensity": "medium",
+    "disposal_risk": "low",
+    "notes": "Long-lasting natural fibre with stronger longevity but non-trivial farming impact."
+  },
+  "cotton": {
+    "sustainability_score": 65,
+    "durability_score": 72,
+    "carbon_intensity": "medium",
+    "water_intensity": "high",
+    "disposal_risk": "low",
+    "notes": "Natural fibre with broad recyclability, but conventional cotton can be water intensive."
+  },
+  "organic cotton": {
+    "sustainability_score": 78,
+    "durability_score": 72,
+    "carbon_intensity": "medium-low",
+    "water_intensity": "medium",
+    "disposal_risk": "low",
+    "notes": "Improves on conventional cotton through better farming practices."
+  },
+  "recycled polyester": {
+    "sustainability_score": 58,
+    "durability_score": 70,
+    "carbon_intensity": "medium",
+    "water_intensity": "low",
+    "disposal_risk": "medium-high",
+    "notes": "Better than virgin polyester on raw materials, but still sheds microfibres."
+  },
+  "polyester": {
+    "sustainability_score": 32,
+    "durability_score": 60,
+    "carbon_intensity": "high",
+    "water_intensity": "low",
+    "disposal_risk": "high",
+    "notes": "Cheap and resilient, but fossil-based and poor at end of life."
+  },
+  "acrylic": {
+    "sustainability_score": 22,
+    "durability_score": 42,
+    "carbon_intensity": "high",
+    "water_intensity": "low",
+    "disposal_risk": "high",
+    "notes": "Low-cost synthetic often associated with pilling and short lifespan."
+  },
+  "nylon": {
+    "sustainability_score": 35,
+    "durability_score": 74,
+    "carbon_intensity": "high",
+    "water_intensity": "low",
+    "disposal_risk": "high",
+    "notes": "Durable synthetic, but high fossil-fuel dependency and disposal issues."
+  },
+  "linen": {
+    "sustainability_score": 82,
+    "durability_score": 75,
+    "carbon_intensity": "low",
+    "water_intensity": "low",
+    "disposal_risk": "low",
+    "notes": "Lower-input natural fibre with solid durability when well cared for."
+  },
+  "viscose": {
+    "sustainability_score": 48,
+    "durability_score": 55,
+    "carbon_intensity": "medium",
+    "water_intensity": "medium",
+    "disposal_risk": "medium",
+    "notes": "Can vary widely depending on sourcing and chemical controls."
+  }
+}
