@@ -1,32 +1,73 @@
 import json
+import logging
 import os
 from typing import Any, Dict
 
-from llm_tracekit import OpenAIInstrumentor, setup_export_to_coralogix
 from opentelemetry import trace
 
 
 _TELEMETRY_READY = False
+logger = logging.getLogger(__name__)
+OpenAIInstrumentor = None
+setup_export_to_coralogix = None
 
 
 def configure_telemetry() -> None:
     global _TELEMETRY_READY
     if _TELEMETRY_READY:
         return
+    instrumentor_cls = OpenAIInstrumentor
+    setup_exporter = setup_export_to_coralogix
+    if instrumentor_cls is None or setup_exporter is None:
+        try:
+            from llm_tracekit import OpenAIInstrumentor as imported_instrumentor
+            from llm_tracekit import setup_export_to_coralogix as imported_exporter
+        except Exception:
+            logger.exception("Failed to import llm_tracekit instrumentation.")
+            _TELEMETRY_READY = True
+            return
+        instrumentor_cls = imported_instrumentor
+        setup_exporter = imported_exporter
     try:
-        if os.getenv("CORALOGIX_PRIVATE_KEY"):
-            setup_export_to_coralogix(
+        coralogix_token = (
+            os.getenv("CORALOGIX_PRIVATE_KEY")
+            or os.getenv("CORALOGIX_TOKEN")
+            or os.getenv("CX_TOKEN")
+        )
+        coralogix_endpoint = os.getenv("CORALOGIX_ENDPOINT") or os.getenv("CX_ENDPOINT")
+        application_name = (
+            os.getenv("CORALOGIX_APPLICATION_NAME")
+            or os.getenv("CX_APPLICATION_NAME")
+            or "ai-demo-app"
+        )
+        subsystem_name = (
+            os.getenv("CORALOGIX_SUBSYSTEM_NAME")
+            or os.getenv("CX_SUBSYSTEM_NAME")
+            or "fashion-cli"
+        )
+
+        if coralogix_token and coralogix_endpoint:
+            setup_exporter(
                 service_name=os.getenv("CORALOGIX_SERVICE_NAME", "sustainable-fashion-advisor"),
-                application_name=os.getenv("CORALOGIX_APPLICATION_NAME", "ai-demo-app"),
-                subsystem_name=os.getenv("CORALOGIX_SUBSYSTEM_NAME", "fashion-cli"),
+                coralogix_token=coralogix_token,
+                coralogix_endpoint=coralogix_endpoint,
+                application_name=application_name,
+                subsystem_name=subsystem_name,
+                capture_content=True
+            )
+        elif coralogix_token or coralogix_endpoint:
+            logger.warning(
+                "Skipping Coralogix exporter setup because one of token/endpoint is missing. "
+                "Resolved token=%s endpoint=%s",
+                bool(coralogix_token),
+                bool(coralogix_endpoint),
             )
     except Exception:
-        # Coralogix export should not block local demo execution.
-        pass
+        logger.exception("Failed to configure Coralogix exporter.")
     try:
-        OpenAIInstrumentor().instrument()
+        instrumentor_cls().instrument()
     except Exception:
-        pass
+        logger.exception("Failed to instrument OpenAI client.")
     _TELEMETRY_READY = True
 
 

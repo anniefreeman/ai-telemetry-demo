@@ -2,9 +2,10 @@
 name = "sustainable-fashion-advisor"
 version = "0.1.0"
 description = "CLI demo for sustainable fashion scoring with OpenAI and Coralogix tracing."
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "openai",
+    "openai-agents",
     "llm-tracekit",
     "opentelemetry-api",
     "opentelemetry-sdk",

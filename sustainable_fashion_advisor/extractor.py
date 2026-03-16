@@ -11,6 +11,25 @@ from sustainable_fashion_advisor.parsing import parse_materials
 class ProductHTMLParser(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
+        self._reset_parse_state()
+
+    def parse_product_document(self, html: str) -> Dict[str, object]:
+        self._reset_parse_state()
+        self.feed(html)
+        self.close()
+        return self._build_parsed_product()
+
+    def handle_starttag(self, tag: str, attrs: List[tuple]) -> None:
+        self._route_starttag(tag, dict(attrs))
+
+    def handle_endtag(self, tag: str) -> None:
+        self._clear_completed_field(tag)
+
+    def handle_data(self, data: str) -> None:
+        self._capture_field_value(data.strip())
+
+    def _reset_parse_state(self) -> None:
+        self.reset()
         self.current_field: Optional[str] = None
         self.current_attrs: Dict[str, str] = {}
         self.data: Dict[str, object] = {
@@ -18,8 +37,7 @@ class ProductHTMLParser(HTMLParser):
             "materials": [],
         }
 
-    def handle_starttag(self, tag: str, attrs: List[tuple]) -> None:
-        attrs_dict = dict(attrs)
+    def _route_starttag(self, tag: str, attrs_dict: Dict[str, str]) -> None:
         classes = attrs_dict.get("class", "")
         if "product-title" in classes:
             self.current_field = "title"
@@ -40,13 +58,12 @@ class ProductHTMLParser(HTMLParser):
         elif tag == "li":
             self.current_field = "quality_signal"
 
-    def handle_endtag(self, tag: str) -> None:
+    def _clear_completed_field(self, tag: str) -> None:
         if tag in {"h1", "span", "li"}:
             self.current_field = None
             self.current_attrs = {}
 
-    def handle_data(self, data: str) -> None:
-        value = data.strip()
+    def _capture_field_value(self, value: str) -> None:
         if not value or not self.current_field:
             return
         if self.current_field == "quality_signal":
@@ -59,6 +76,17 @@ class ProductHTMLParser(HTMLParser):
             )
             return
         self.data[self.current_field] = value
+
+    def _build_parsed_product(self) -> Dict[str, object]:
+        return {
+            "title": self.data.get("title"),
+            "brand": self.data.get("brand"),
+            "price": self.data.get("price"),
+            "currency": self.data.get("currency"),
+            "category": self.data.get("category"),
+            "materials": self.data.get("materials", []),
+            "quality_signals": self.data.get("quality_signals", []),
+        }
 
 
 def extract_product(input_data: ProductInput) -> ExtractedProduct:
@@ -127,18 +155,17 @@ def extract_product(input_data: ProductInput) -> ExtractedProduct:
 
 def _parse_fixture(url: str, fixture_name: str) -> Dict[str, object]:
     parser = ProductHTMLParser()
-    parser.feed(load_fixture_html(fixture_name))
-    parser.close()
+    parsed_product = parser.parse_product_document(load_fixture_html(fixture_name))
     return {
         "url": url,
         "confidence": 0.95,
-        "title": parser.data.get("title"),
-        "brand": parser.data.get("brand"),
-        "price": parser.data.get("price"),
-        "currency": parser.data.get("currency"),
-        "category": _normalize_category(parser.data.get("category")),
-        "materials": parser.data.get("materials", []),
-        "quality_signals": parser.data.get("quality_signals", []),
+        "title": parsed_product.get("title"),
+        "brand": parsed_product.get("brand"),
+        "price": parsed_product.get("price"),
+        "currency": parsed_product.get("currency"),
+        "category": _normalize_category(parsed_product.get("category")),
+        "materials": parsed_product.get("materials", []),
+        "quality_signals": parsed_product.get("quality_signals", []),
     }
 
 

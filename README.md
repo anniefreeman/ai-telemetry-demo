@@ -1,9 +1,11 @@
 # Sustainable Fashion Advisor CLI
 
-This project is a Python CLI demo that scores a clothing item for sustainability and cost-effectiveness, explains the decision, and emits a traceable decision trajectory using OpenTelemetry. It is designed as both:
+This project is a Python CLI demo that uses the OpenAI Agents SDK to turn a natural-language shopping question into a structured clothing assessment. It scores a garment for sustainability and cost-effectiveness, explains the decision, and emits a traceable decision trajectory using OpenTelemetry.
+
+It is designed as both:
 
 - a simple product prototype for sustainable fashion purchasing advice
-- a demo app for OpenAI instrumentation, tool calls, and Coralogix AI Center tracing/evals
+- a demo app for OpenAI agent orchestration, tracing, and Coralogix AI Center evals
 
 ## What The Tool Does
 
@@ -19,14 +21,15 @@ The CLI analyzes a single garment and returns:
 - a short rationale
 - explicit assumptions if any data was missing
 
-The first version is intentionally deterministic and local-first:
+The current version is hybrid:
 
-- product extraction uses local HTML fixtures for a few demo URLs
+- an OpenAI agent parses the user's free-text prompt into structured product fields
+- known demo URLs are resolved against local HTML fixtures
 - brand and material data come from local JSON datasets
 - scoring is computed in code, not by the model
-- the LLM is used only to narrate the result
+- the LLM is used both for prompt parsing and for the final explanation
 
-This keeps the demo reliable while still showing an LLM call and a multi-step decision trace.
+This keeps the core recommendation logic deterministic while still showing an agent-driven front door and a multi-step trace.
 
 ## Repository Structure
 
@@ -51,58 +54,60 @@ This keeps the demo reliable while still showing an LLM call and a multi-step de
 
 ## How To Install And Run
 
-### 1. Install the project
+### 1. Create a virtual environment and install dependencies
+
+Requires Python 3.10 or newer.
 
 From the repo root:
 
 ```bash
-python3 -m pip install -e .
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[dev]"
 ```
 
-For local testing:
+Why a virtual environment is required:
 
-```bash
-python3 -m pip install -e ".[dev]"
-```
+- macOS/Homebrew often marks the system Python as externally managed, which blocks `pip install -e ...`
+- the OpenAI Agents SDK requires a modern Python runtime and project-local dependencies
+- using `.venv` avoids interpreter mismatches and missing-package errors
 
 ### 2. Run the CLI
 
 Show help:
 
 ```bash
-python3 ai-centre-demo.py --help
+python ai-centre-demo.py --help
 ```
 
 Analyze a known sample URL:
 
 ```bash
-python3 ai-centre-demo.py analyze-item --url https://demo.shop/patagonia-wool-sweater
+python ai-centre-demo.py analyze-item \
+  --prompt "Should I buy https://demo.shop/patagonia-wool-sweater?"
 ```
 
 Analyze an item with manual fields:
 
 ```bash
-python3 ai-centre-demo.py analyze-item \
-  --title "Wool Crew Sweater" \
-  --brand "Thought" \
-  --price 95 \
-  --currency GBP \
-  --materials "100% wool" \
-  --category sweater
+python ai-centre-demo.py analyze-item \
+  --prompt "Should I buy this Thought Wool Crew Sweater for 95 GBP? It's 100% wool and the category is sweater."
 ```
 
 Get JSON output:
 
 ```bash
-python3 ai-centre-demo.py analyze-item \
-  --url https://demo.shop/everlane-blend-sweater \
+python ai-centre-demo.py analyze-item \
+  --prompt "Should I buy https://demo.shop/everlane-blend-sweater?" \
   --json
 ```
+
+If the first prompt is incomplete, the CLI asks one follow-up question to collect missing details like brand, price, category, or material composition.
 
 ### 3. Run tests
 
 ```bash
-python3 -m pytest -q
+python -m pytest -q
 ```
 
 ## Supported Inputs
@@ -110,29 +115,29 @@ python3 -m pytest -q
 The main command is:
 
 ```bash
-python3 ai-centre-demo.py analyze-item [OPTIONS]
+python ai-centre-demo.py analyze-item [OPTIONS]
 ```
 
 Supported options:
 
-- `--url`
-  Product URL. In v1 this must match one of the local demo URLs in the sample URL map.
-- `--title`
-  Manual product title.
-- `--brand`
-  Manual brand name.
-- `--price`
-  Manual price.
-- `--currency`
-  Currency code. Defaults to `GBP`.
-- `--materials`
-  Material composition like `"80% wool, 20% nylon"`.
-- `--category`
-  Garment category such as `sweater`, `coat`, `jeans`.
+- `--prompt`
+  Natural-language purchase prompt. This can include a known demo URL and/or product details in plain English.
 - `--json`
   Return the full report as JSON.
 
-If a known demo URL is provided, the tool loads product details from a local fixture. If the URL is unknown, it does not attempt live scraping; instead it falls back to any manual fields you provided and records assumptions in the output.
+If the prompt includes a known demo URL, the tool loads product details from a local fixture. If key details are missing from the prompt, the CLI asks one follow-up question before continuing with conservative assumptions.
+
+## Required Environment
+
+The current `analyze-item` command depends on OpenAI for prompt parsing.
+
+Set:
+
+```bash
+export OPENAI_API_KEY=your_key_here
+```
+
+Optional telemetry environment variables can also be set for Coralogix, but they are not required to run the CLI locally.
 
 ## Demo URLs
 
@@ -144,7 +149,17 @@ These URLs are currently backed by local fixtures:
 
 They are defined in [sustainable_fashion_advisor/data/sample_urls.json](/Users/annie.freeman/demos/ai-centre-demo/sustainable_fashion_advisor/data/sample_urls.json).
 
-## How The Tool Has Been Built
+## How It Works Now
+
+The current end-to-end flow is:
+
+1. The user runs `analyze-item --prompt "..."`
+2. The CLI sends the prompt to an OpenAI Agents SDK parser
+3. The parser returns structured product fields such as URL, title, brand, price, materials, and category
+4. If essential fields are still missing, the CLI asks one clarification question and retries parsing once
+5. The deterministic pipeline gathers evidence, computes scores, and builds a `DecisionReport`
+6. The explanation layer turns that structured report into a short rationale
+7. The CLI renders either a readable scorecard or JSON
 
 ### CLI layer
 
@@ -152,9 +167,24 @@ The CLI is built with Typer in [sustainable_fashion_advisor/cli.py](/Users/annie
 
 - parses the command-line options
 - initializes telemetry
-- converts the input into a typed `ProductInput`
+- uses an OpenAI Agents SDK parser to convert the prompt into a typed `ProductInput`
+- asks one follow-up question if essential product fields are missing
 - runs the analysis pipeline
 - renders either a readable scorecard or JSON
+
+The launcher in [ai-centre-demo.py](/Users/annie.freeman/demos/ai-centre-demo/ai-centre-demo.py) also checks that you are running Python 3.10+ before importing the CLI.
+
+### Agent-backed prompt parsing
+
+Prompt parsing is implemented in [agent_parser.py](/Users/annie.freeman/demos/ai-centre-demo/sustainable_fashion_advisor/agent_parser.py).
+
+Behavior:
+
+- the agent receives the user prompt and extracts structured product fields
+- the model is pinned in code for demo consistency
+- if the prompt contains a known demo URL, that URL is preserved for deterministic fixture lookup downstream
+- if too much information is missing, the CLI asks one combined follow-up question
+- if `OPENAI_API_KEY` is missing or the Agents SDK is unavailable, the command exits with a clear error
 
 ### Product extraction
 
@@ -162,7 +192,7 @@ Product extraction happens in [sustainable_fashion_advisor/extractor.py](/Users/
 
 Behavior:
 
-- if `--url` matches a known demo URL, the tool loads a local HTML fixture and parses:
+- if the parsed product input contains a known demo URL, the tool loads a local HTML fixture and parses:
   - title
   - brand
   - price
@@ -170,7 +200,7 @@ Behavior:
   - category
   - materials
   - quality signals
-- if the URL is not recognized, the tool uses the manual flags instead
+- if the URL is not recognized, the tool relies on the parsed prompt fields instead
 - any missing fields are converted into explicit assumptions
 
 This design makes the demo predictable and avoids fragile live scraping.
@@ -237,7 +267,7 @@ Important design point:
 - the LLM does not decide the recommendation
 - the LLM receives the structured decision data and turns it into a short explanation
 
-If `OPENAI_API_KEY` is not set, the app falls back to a deterministic explanation string. That means the app still works for demos without OpenAI access, but you will not see an OpenAI API span in that case.
+For the current CLI flow, `OPENAI_API_KEY` is already required earlier because the agent parser depends on it. The deterministic explanation fallback still exists at the module level, but in practice the command will not reach that path without OpenAI access.
 
 ## End-To-End Pipeline
 
@@ -271,7 +301,7 @@ Instrumentation is set up in [sustainable_fashion_advisor/telemetry.py](/Users/a
 
 `configure_telemetry()` does two things:
 
-1. If `CORALOGIX_PRIVATE_KEY` is set, it calls `setup_export_to_coralogix(...)`.
+1. If a Coralogix token and endpoint are available, it calls `setup_export_to_coralogix(...)`.
 2. It calls `OpenAIInstrumentor().instrument()`.
 
 The first configures OpenTelemetry export for Coralogix through `llm_tracekit`. The second instruments OpenAI client calls so the explanation request is captured automatically when the LLM path is used.
@@ -373,28 +403,29 @@ export OPENAI_MODEL=gpt-4o-mini
 
 ### To export traces to Coralogix
 
-Set at minimum:
+Use the same environment variables as the Coralogix getting-started guide:
 
 ```bash
-export CORALOGIX_PRIVATE_KEY=...
+export CX_TOKEN=...
+export CX_ENDPOINT=...
 ```
 
 Optional service naming:
 
 ```bash
+export CX_APPLICATION_NAME=ai-demo-app
+export CX_SUBSYSTEM_NAME=fashion-cli
 export CORALOGIX_SERVICE_NAME=sustainable-fashion-advisor
-export CORALOGIX_APPLICATION_NAME=ai-demo-app
-export CORALOGIX_SUBSYSTEM_NAME=fashion-cli
 ```
 
-Without `CORALOGIX_PRIVATE_KEY`, the app skips exporter configuration so local runs stay quiet.
+The app also accepts `CORALOGIX_PRIVATE_KEY`, `CORALOGIX_TOKEN`, `CORALOGIX_ENDPOINT`, `CORALOGIX_APPLICATION_NAME`, and `CORALOGIX_SUBSYSTEM_NAME` as compatibility aliases, but `CX_TOKEN` and `CX_ENDPOINT` are the primary variables used by the official `llm-tracekit` getting-started flow.
 
 ## Example Demo Flow
 
 For a full demo showing both the tool and the telemetry:
 
 1. Set `OPENAI_API_KEY`.
-2. Set `CORALOGIX_PRIVATE_KEY` and optional service naming env vars.
+2. Set `CX_TOKEN`, `CX_ENDPOINT`, and optional service naming env vars.
 3. Run:
 
 ```bash

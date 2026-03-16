@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import List
 
 from openai import OpenAI
@@ -6,16 +7,27 @@ from openai import OpenAI
 from sustainable_fashion_advisor.models import DecisionReport
 
 
+logger = logging.getLogger(__name__)
+
+
 def generate_explanation(report: DecisionReport) -> str:
-    if not os.getenv("OPENAI_API_KEY"):
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        logger.warning("OPENAI_API_KEY is not set; using deterministic explanation fallback.")
         return _fallback_explanation(report, missing_llm=True)
 
-    client = OpenAI()
+    client = OpenAI(
+        api_key=api_key,
+        timeout=float(os.getenv("OPENAI_TIMEOUT_SECONDS", "30")),
+        max_retries=int(os.getenv("OPENAI_MAX_RETRIES", "2")),
+    )
     prompt = _build_prompt(report)
     try:
         response = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             temperature=0.2,
+            max_completion_tokens=220,
+            user="sustainable-fashion-advisor-cli",
             messages=[
                 {
                     "role": "system",
@@ -28,8 +40,12 @@ def generate_explanation(report: DecisionReport) -> str:
             ],
         )
         content = response.choices[0].message.content
-        return content.strip() if content else _fallback_explanation(report, missing_llm=False)
-    except Exception:
+        if content:
+            return content.strip()
+        logger.warning("OpenAI returned an empty explanation; using deterministic fallback.")
+        return _fallback_explanation(report, missing_llm=False)
+    except Exception as exc:
+        logger.exception("OpenAI explanation request failed; using deterministic fallback.")
         return _fallback_explanation(report, missing_llm=False)
 
 

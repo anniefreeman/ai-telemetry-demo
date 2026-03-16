@@ -1,4 +1,5 @@
-from sustainable_fashion_advisor.extractor import extract_product
+from sustainable_fashion_advisor.data_loader import load_fixture_html
+from sustainable_fashion_advisor.extractor import ProductHTMLParser, extract_product
 from sustainable_fashion_advisor.models import ProductInput
 
 
@@ -35,3 +36,14 @@ def test_unknown_url_falls_back_to_manual_fields():
     assert product.price == 85
     assert product.materials[0].name == "cotton"
     assert any("manual fields" in assumption.lower() for assumption in product.assumptions)
+
+
+def test_product_html_parser_contract_method_returns_fixture_fields():
+    parsed = ProductHTMLParser().parse_product_document(
+        load_fixture_html("patagonia_wool_sweater.html")
+    )
+
+    assert parsed["title"] == "Patagonia Reclaimed Wool Sweater"
+    assert parsed["brand"] == "Patagonia"
+    assert parsed["price"] == 160.0
+    assert parsed["category"] == "sweater"
